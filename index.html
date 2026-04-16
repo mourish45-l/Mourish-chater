@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mourish AI | powered by Gemini 3.1 flash-lite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <style>
+        body { background-color: #030712; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .chat-container { max-width: 800px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; }
+        .glass { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); }
+        pre { position: relative; border-radius: 12px !important; margin: 15px 0 !important; border: 1px solid #334155 !important; }
+        .copy-btn {
+            position: absolute; right: 10px; top: 10px; z-index: 10;
+            background: #475569; color: white; padding: 4px 10px; 
+            border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;
+        }
+        .copy-btn:hover { background: #6366f1; }
+        .message-bubble { max-width: 85%; line-height: 1.6; }
+    </style>
+</head>
+<body class="p-4">
+
+    <div class="chat-container glass rounded-3xl shadow-2xl overflow-hidden">
+        <div class="p-5 border-b border-white/5 flex items-center justify-between bg-white/5">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black">M</div>
+                <h1 class="font-bold tracking-tight">Mourish  <span class="text-indigo-400">Chat</span></h1>
+            </div>
+            <div class="text-[10px] bg-white/10 px-2 py-1 rounded uppercase tracking-widest text-slate-400">Status: OK Chat</div>
+        </div>
+
+        <div id="chat-box" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+            <div class="message-bubble bg-slate-800/40 p-4 rounded-2xl rounded-tl-none border border-white/5">
+                Hello ! I am running on **Gemini 3.1 Flash-Lite**. Send me any request, and if I generate code, it will be highlighted with a copy button.
+            </div>
+        </div>
+
+        <div class="p-6 bg-slate-900/50">
+            <div class="relative flex items-center gap-3">
+                <input type="text" id="user-input" placeholder="Message Gemini 3.1..." 
+                    class="flex-1 bg-slate-800 border border-white/10 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner">
+                <button id="send-btn" class="bg-indigo-600 p-4 rounded-2xl hover:bg-indigo-500 transition-transform active:scale-95 shadow-lg shadow-indigo-500/20">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+    import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+    const API_KEY = "AQ.Ab8RN6IDOGxLVTKnQj3LUMynYtNRy-ymaYN3hnn_YIvaj5lb4w";
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-3.1-flash-lite-preview",
+        systemInstruction: "When providing facts, wrap key points in ==double equals== for highlighting. Always list your sources at the end of the message starting with 'Sources:'."
+    });
+
+    const chatBox = document.getElementById('chat-box');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    async function chat() {
+        const prompt = userInput.value.trim();
+        if (!prompt) return;
+
+        addMessage(prompt, 'user');
+        userInput.value = '';
+
+        try {
+            const result = await model.generateContent(prompt);
+            const response = result.response.text();
+            addMessage(response, 'ai');
+        } catch (err) {
+            addMessage("Error: " + err.message, 'error');
+        }
+    }
+
+    function addMessage(text, sender) {
+        const div = document.createElement('div');
+        div.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'} mb-4`;
+        
+        // 1. Handle Code Blocks
+        let htmlContent = text.replace(/```(\w+)?([\s\S]*?)```/g, (match, lang, code) => {
+            const language = lang || 'javascript';
+            return `<div class="relative my-4">
+                <button class="copy-btn" onclick="copyCode(this)">COPY</button>
+                <pre><code class="language-${language}">${code.trim()}</code></pre>
+            </div>`;
+        });
+
+        // 2. Handle Yellow Highlights (Detects ==text==)
+        htmlContent = htmlContent.replace(/==([\s\S]*?)==/g, '<mark class="bg-yellow-400 text-black px-1 rounded">$1</mark>');
+
+        // 3. Handle Sources (Style text after 'Sources:')
+        if (htmlContent.includes("Sources:")) {
+            htmlContent = htmlContent.replace(/Sources:([\s\S]*)/g, '<div class="mt-3 pt-2 border-t border-white/10 text-xs text-indigo-300 font-mono"><b>SOURCES:</b>$1</div>');
+        }
+
+        // 4. Preserve Newlines
+        htmlContent = htmlContent.replace(/\n/g, '<br>');
+
+        div.innerHTML = `
+            <div class="message-bubble ${sender === 'user' ? 'bg-indigo-600' : 'bg-slate-800/50'} p-4 rounded-2xl ${sender === 'user' ? 'rounded-tr-none' : 'rounded-tl-none'} border border-white/5">
+                <p class="text-sm">${htmlContent}</p>
+            </div>
+        `;
+        
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+        Prism.highlightAll();
+    }
+
+    window.copyCode = (btn) => {
+        const code = btn.nextElementSibling.innerText;
+        navigator.clipboard.writeText(code).then(() => {
+            btn.innerText = "COPIED!";
+            setTimeout(() => { btn.innerText = "COPY"; }, 2000);
+        });
+    };
+
+    sendBtn.onclick = chat;
+    userInput.onkeydown = (e) => { if (e.key === 'Enter') chat(); };
+</script>
+
+</body>
+</html>
